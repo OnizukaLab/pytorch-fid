@@ -38,8 +38,9 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 import numpy as np
 import torch
+import dill
 from scipy import linalg
-from scipy.misc import imread
+from PIL import Image
 from torch.nn.functional import adaptive_avg_pool2d
 
 try:
@@ -65,7 +66,7 @@ parser.add_argument('-c', '--gpu', default='', type=str,
 
 
 def get_activations(files, model, batch_size=50, dims=2048,
-                    cuda=False, verbose=False):
+                    cuda=False, verbose=False, imsize=256):
     """Calculates the activations of the pool_3 layer for all images.
 
     Params:
@@ -106,9 +107,11 @@ def get_activations(files, model, batch_size=50, dims=2048,
                   end='', flush=True)
         start = i * batch_size
         end = start + batch_size
-
-        images = np.array([imread(str(f)).astype(np.float32)
-                           for f in files[start:end]])
+        images = []
+        for f in files[start:end]:
+            im = Image.open(f).convert("RGB").resize((imsize, imsize))
+            images.append(np.array(im, np.float32))
+        images = np.array(images)
 
         # Reshape to (n_images, 3, height, width)
         images = images.transpose((0, 3, 1, 2))
@@ -222,10 +225,16 @@ def _compute_statistics_of_path(path, model, batch_size, dims, cuda):
         f.close()
     else:
         path = pathlib.Path(path)
-        files = list(path.glob('*.jpg')) + list(path.glob('*.png'))
-        m, s = calculate_activation_statistics(files, model, batch_size,
-                                               dims, cuda)
-
+        dump = path / ".fid_dump.dill"
+        if dump.exists():
+            print("Load dump file from {}".format(str(dump)))
+            with open(dump, "rb") as f:
+                m, s = dill.load(f)
+        else:
+            files = list(path.glob('**/*.jpg')) + list(path.glob('**/*.png'))
+            m, s = calculate_activation_statistics(files, model, batch_size, dims, cuda)
+            with open(dump, "wb") as f:
+                dill.dump([m, s], f)
     return m, s
 
 
