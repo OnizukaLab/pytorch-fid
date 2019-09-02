@@ -231,7 +231,10 @@ def _compute_statistics_of_path(path, model, batch_size, dims, cuda):
             with open(dump, "rb") as f:
                 m, s = dill.load(f)
         else:
-            files = list(path.glob('**/*.jpg')) + list(path.glob('**/*.png'))
+            if len(list(path.glob("**/0.jpg")) + list(path.glob("**/*sent0.jpg"))) == 1:
+                files = list(path.glob('**/*.jpg')) + list(path.glob('**/*.png'))
+            else:
+                files = list(path.glob('**/*fake*.jpg')) + list(path.glob('**/*fake*.png'))
             m, s = calculate_activation_statistics(files, model, batch_size, dims, cuda)
             with open(dump, "wb") as f:
                 dill.dump([m, s], f)
