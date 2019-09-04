@@ -28,8 +28,8 @@ def parse_args():
                         help="Required. Path to images the model generated.")
     parser.add_argument("--gpu", type=int, required=False, default=-1,
                         help="Optional. GPU id to use. If not specified, no GPU will be used (CPU only).")
-    parser.add_argument("--split", type=int, required=False, default=10,
-                        help="Optional. Default 10. The number the test set will be split into when aggregation.")
+    # parser.add_argument("--split", type=int, required=False, default=10,
+    #                     help="Optional. Default 10. The number the test set will be split into when aggregation.")
     parser.add_argument("--num_workers", type=int, required=False, default=4,
                         help="Optional. num_workers for data loader.")
     return parser.parse_args()
@@ -134,7 +134,7 @@ if __name__ == '__main__':
     inception_model.eval()
 
     scores = {i: [] for i in range(7)}
-    criterion = torch.nn.MSELoss(reduction="none")
+    criterion = torch.nn.MSELoss()
     for data in tqdm(dataloader):
         reals, fakes = data[:7], data[7:]
         for i in range(7):
@@ -144,9 +144,7 @@ if __name__ == '__main__':
             real_feature = inception_model(real)[0]
             fake_feature = inception_model(fake)[0]
             score = criterion(real_feature, fake_feature)
-            scores[i] += score.detatch().tolist()
-    split_batch_size = len(dataset)//args.split
+            scores[i].append(score.detach().item())
     for i in range(7):
-        score = scores[i]
-        merged_scores = np.array([np.mean(score[i*split_batch_size:(i+1)*split_batch_size]) for i in range(args.split)])
-        print("blur{},{:.2f},{:.2f}".format(i, merged_scores.mean(), merged_scores.std()))
+        score = np.array(scores[i])
+        print("blur{},{:.2f},{:.2f}".format(i, score.mean(), score.std()))
