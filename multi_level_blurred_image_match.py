@@ -13,6 +13,11 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from PIL import Image, ImageFilter
 from inception import InceptionV3
+try:
+    from tqdm import tqdm
+except ImportError:
+    # If not tqdm is not available, provide a mock version of it
+    def tqdm(x): return x
 
 
 def parse_args():
@@ -70,13 +75,15 @@ class BlurredImagesDataset(Dataset):
         return bbox_list
 
     def get_image(self, path, index, bbox=None):
-        image_path = list(
-            path.glob(
-                self.test_filenames[index//self.embeddings_num] + "*{}.jpg".format(index % self.embeddings_num))
-        ) + list(path.glob("{}.jpg".format(index)))\
-                     + list(path.glob("{}_fake_*".format(index)))
-        assert len(image_path) == 1, "Invalid image path {}".format("\n".join([str(p) for p in image_path]))
-        image_path = image_path[0]
+        image_path = path / "CUB_200_2011/images" / self.test_filenames[index//self.embeddings_num]+".jpg"
+        if not image_path.exists():
+            image_path = list(
+                path.glob(
+                    self.test_filenames[index//self.embeddings_num] + "*{}.jpg".format(index % self.embeddings_num))
+            ) + list(path.glob("{}.jpg".format(index)))\
+                         + list(path.glob("{}_fake_*".format(index)))
+            assert len(image_path) == 1, "Invalid image path {}".format("\n".join([str(p) for p in image_path]))
+            image_path = image_path[0]
         image = Image.open(image_path).convert("RGB")
         if bbox is not None:
             width, height = image.size
@@ -120,13 +127,13 @@ if __name__ == '__main__':
     dataloader = DataLoader(dataset, shuffle=True, batch_size=100, drop_last=False,
                             collate_fn=collate_fn, num_workers=args.num_workers)
     device = torch.device("cuda:{}".format(args.gpu) if (args.gpu != -1 and torch.cuda.is_available()) else "cpu")
-    inception_model = InceptionV3(output_blocks=[2048], normalize_input=False)
+    inception_model = InceptionV3(output_blocks=[3], normalize_input=False)
     inception_model.to(device)
     inception_model.eval()
 
     scores = {i: [] for i in range(7)}
     criterion = torch.nn.MSELoss(reduce=False)
-    for data in dataloader:
+    for data in tqdm(dataloader):
         for i in range(7):
             real, fake = data[i]
             real = real.to(device)
