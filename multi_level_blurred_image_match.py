@@ -56,6 +56,7 @@ class BlurredImagesDataset(Dataset):
             lambda im: im.filter(ImageFilter.GaussianBlur(radius=img_size/(2**9))))  # weakest blur
 
         self.norm = transforms.Compose([
+            transforms.Resize((299, 299)),
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
         self.embeddings_num = 10
@@ -126,7 +127,7 @@ class BlurredImagesDataset(Dataset):
 if __name__ == '__main__':
     args = parse_args()
     dataset = BlurredImagesDataset(args.data_root, args.fake)
-    dataloader = DataLoader(dataset, shuffle=True, batch_size=100, drop_last=False, num_workers=args.num_workers)
+    dataloader = DataLoader(dataset, shuffle=True, batch_size=32, drop_last=False, num_workers=args.num_workers)
     device = torch.device("cuda:{}".format(args.gpu) if (args.gpu != -1 and torch.cuda.is_available()) else "cpu")
     inception_model = InceptionV3(output_blocks=[3], normalize_input=False)
     inception_model.to(device)
