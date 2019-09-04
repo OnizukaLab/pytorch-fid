@@ -106,7 +106,7 @@ class BlurredImagesDataset(Dataset):
         for blur in self.blur0, self.blur1, self.blur2, self.blur3, self.blur4, self.blur5:
             real_set.append(self.norm(blur(real)))
             fake_set.append(self.norm(blur(fake)))
-        return real_set + [real] + fake_set + [fake]
+        return real_set + [self.norm(real)] + fake_set + [self.norm(fake)]
 
     def __len__(self):
         return len(self.test_filenames)
@@ -136,8 +136,9 @@ if __name__ == '__main__':
     scores = {i: [] for i in range(7)}
     criterion = torch.nn.MSELoss(reduction="none")
     for data in tqdm(dataloader):
+        reals, fakes = data[:7], data[7:]
         for i in range(7):
-            real, fake = data[i]
+            real, fake = reals[i], fakes[i]
             real = real.to(device)
             fake = fake.to(device)
             real_feature = inception_model(real)[0]
