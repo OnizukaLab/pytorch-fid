@@ -75,7 +75,7 @@ class BlurredImagesDataset(Dataset):
         return bbox_list
 
     def get_image(self, path, index, bbox=None):
-        image_path = path / "CUB_200_2011/images" / self.test_filenames[index//self.embeddings_num]+".jpg"
+        image_path = path / (self.test_filenames[index//self.embeddings_num]+".jpg")
         if not image_path.exists():
             image_path = list(
                 path.glob(
@@ -110,13 +110,14 @@ class BlurredImagesDataset(Dataset):
         return len(self.test_filenames)
 
 
-def collate_fn(image_set):
+def collate_fn(image_sets):
     real_dict = {i: [] for i in range(7)}
     fake_dict = {i: [] for i in range(7)}
-    for real_blurs, fake_blurs in image_set:
+    for image_set in image_sets:
         for i in range(7):
-            real_dict[i].append(real_blurs[i])
-            fake_dict[i].append(fake_blurs[i])
+            real_img, fake_img = image_set[i]
+            real_dict[i].append(real_img)
+            fake_dict[i].append(fake_img)
     mini_batch = [(torch.stack(real_dict[i])+torch.stack(fake_dict[i])) for i in range(7)]
     return mini_batch
 
@@ -132,7 +133,7 @@ if __name__ == '__main__':
     inception_model.eval()
 
     scores = {i: [] for i in range(7)}
-    criterion = torch.nn.MSELoss(reduce=False)
+    criterion = torch.nn.MSELoss(reduction="none")
     for data in tqdm(dataloader):
         for i in range(7):
             real, fake = data[i]
