@@ -100,33 +100,33 @@ class BlurredImagesDataset(Dataset):
     def __getitem__(self, index):
         real = self.get_image(self.data_root/"CUB_200_2011/images", index, self.bbox[index//self.embeddings_num])
         fake = self.get_image(self.fake_image_path, index)
-        image_set = []
+        real_set = []
+        fake_set = []
         for blur in self.blur0, self.blur1, self.blur2, self.blur3, self.blur4, self.blur5:
-            image_set.append((self.norm(blur(real)), self.norm(blur(fake))))
-        image_set.append((real, fake))
-        return image_set
+            real_set.append(self.norm(blur(real)))
+            fake_set.append(self.norm(blur(fake)))
+        return real_set + [real] + fake_set + [fake]
 
     def __len__(self):
         return len(self.test_filenames)
 
 
-def collate_fn(image_sets):
-    real_dict = {i: [] for i in range(7)}
-    fake_dict = {i: [] for i in range(7)}
-    for image_set in image_sets:
-        for i in range(7):
-            real_img, fake_img = image_set[i]
-            real_dict[i].append(real_img)
-            fake_dict[i].append(fake_img)
-    mini_batch = [(torch.stack(real_dict[i])+torch.stack(fake_dict[i])) for i in range(7)]
-    return mini_batch
+# def collate_fn(image_sets):
+#     real_dict = {i: [] for i in range(7)}
+#     fake_dict = {i: [] for i in range(7)}
+#     for image_set in image_sets:
+#         for i in range(7):
+#             real_img, fake_img = image_set[i]
+#             real_dict[i].append(real_img)
+#             fake_dict[i].append(fake_img)
+#     mini_batch = [(torch.stack(real_dict[i])+torch.stack(fake_dict[i])) for i in range(7)]
+#     return mini_batch
 
 
 if __name__ == '__main__':
     args = parse_args()
     dataset = BlurredImagesDataset(args.data_root, args.fake)
-    dataloader = DataLoader(dataset, shuffle=True, batch_size=100, drop_last=False,
-                            collate_fn=collate_fn, num_workers=args.num_workers)
+    dataloader = DataLoader(dataset, shuffle=True, batch_size=100, drop_last=False, num_workers=args.num_workers)
     device = torch.device("cuda:{}".format(args.gpu) if (args.gpu != -1 and torch.cuda.is_available()) else "cpu")
     inception_model = InceptionV3(output_blocks=[3], normalize_input=False)
     inception_model.to(device)
