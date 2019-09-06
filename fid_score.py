@@ -252,8 +252,9 @@ def calculate_fid_given_paths(paths, batch_size, cuda, dims, phase):
     for p in paths:
         if not os.path.exists(p):
             raise RuntimeError('Invalid path: %s' % p)
-        if phase and os.path.exists(os.path.join(p, "../{}/filienames.pickle".format(phase))):
-            filenames.append(os.path.join(p, "../{}/filienames.pickle".format(phase)))
+        if phase and os.path.exists(os.path.join(p, "../../{}/filienames.pickle".format(phase))):
+            filenames.append(os.path.join(p, "../../{}/filienames.pickle".format(phase)))
+            print("load filenames", filenames[-1])
         else:
             filenames.append(None)
 
