@@ -39,6 +39,7 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import numpy as np
 import torch
 import dill
+import pickle
 from scipy import linalg
 from PIL import Image
 from torch.nn.functional import adaptive_avg_pool2d
@@ -63,6 +64,8 @@ parser.add_argument('--dims', type=int, default=2048,
                           'By default, uses pool3 features'))
 parser.add_argument('-c', '--gpu', default='', type=str,
                     help='GPU to use (leave blank for CPU only)')
+parser.add_argument('--phase', default='', type=str,
+                    help='If it is train, use only train images.')
 
 
 def get_activations(files, model, batch_size=50, dims=2048,
@@ -218,31 +221,41 @@ def calculate_activation_statistics(files, model, batch_size=50,
     return mu, sigma
 
 
-def _compute_statistics_of_path(path, model, batch_size, dims, cuda):
+def _compute_statistics_of_path(path, model, batch_size, dims, cuda, filename, phase):
     if path.endswith('.npz'):
         f = np.load(path)
         m, s = f['mu'][:], f['sigma'][:]
         f.close()
     else:
         path = pathlib.Path(path)
-        dump = path / ".fid_dump.dill"
+        dump = path / ".fid_dump{}.dill".format(phase)
         if dump.exists():
             print("Load dump file from {}".format(str(dump)))
             with open(dump, "rb") as f:
                 m, s = dill.load(f)
         else:
-            files = list(path.glob('**/*.jpg')) + list(path.glob('**/*.png'))
+            if filename:
+                with open(filename, "rb") as f:
+                    filenames = pickle.load(f, encoding="latin")
+                files = [(path/f).with_suffix(".jpg") for f in filenames]
+            else:
+                files = list(path.glob('**/*.jpg')) + list(path.glob('**/*.png'))
             m, s = calculate_activation_statistics(files, model, batch_size, dims, cuda)
-            with open(dump, "wb") as f:
+            with open("/workspace/"+".fid_dump{}.dill".format(phase), "wb") as f:  # MEMO: hard coding
                 dill.dump([m, s], f)
     return m, s
 
 
-def calculate_fid_given_paths(paths, batch_size, cuda, dims):
+def calculate_fid_given_paths(paths, batch_size, cuda, dims, phase):
     """Calculates the FID of two paths"""
+    filenames = []
     for p in paths:
         if not os.path.exists(p):
             raise RuntimeError('Invalid path: %s' % p)
+        if phase and os.path.exists(os.path.join(p, "../{}/filienames.pickle".format(phase))):
+            filenames.append(os.path.join(p, "../{}/filienames.pickle".format(phase)))
+        else:
+            filenames.append(None)
 
     block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[dims]
 
@@ -251,9 +264,9 @@ def calculate_fid_given_paths(paths, batch_size, cuda, dims):
         model.cuda()
 
     m1, s1 = _compute_statistics_of_path(paths[0], model, batch_size,
-                                         dims, cuda)
+                                         dims, cuda, filenames[0], phase)
     m2, s2 = _compute_statistics_of_path(paths[1], model, batch_size,
-                                         dims, cuda)
+                                         dims, cuda, filenames[1], phase)
     fid_value = calculate_frechet_distance(m1, s1, m2, s2)
 
     return fid_value
@@ -266,5 +279,6 @@ if __name__ == '__main__':
     fid_value = calculate_fid_given_paths(args.path,
                                           args.batch_size,
                                           args.gpu != '',
-                                          args.dims)
+                                          args.dims,
+                                          args.phase)
     print('FID: ', fid_value)
